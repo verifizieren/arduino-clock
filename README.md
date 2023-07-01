@@ -1,6 +1,7 @@
 # Arduino Seven-Segment Clock
 
 This is an Arduino project that displays the time on a four-digit seven-segment display. The clock allows you to set the hours and minutes using buttons and displays the time in either HH:MM or MM:SS format.
+UML-Diagram coming soon.
 
 ## Usage
 1. Connect the Arduino board to power.
