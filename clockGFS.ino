@@ -1,107 +1,97 @@
-// Bibliothek einbinden
+// Inkludierung von Bounce2
 #include <Bounce2.h>
 
 // Definition der Taster-Pins
-#define Taster1 A1
-#define Taster2 A2
-#define Taster3 A3
-#define LATCH_DIO 4
-#define CLK_DIO 7
-#define DATA_DIO 8
+const byte TASTER_PINS[] = { A1, A2, A3 };
+const byte LATCH_DIO = 4;
+const byte CLK_DIO = 7;
+const byte DATA_DIO = 8;
 
-// Segment-Byte-Mapping für die Zahlen 0 bis 9
+// Segment-Byte-Mapping für Zahlen von 0 bis 9
 const byte SEGMENT_MAP[] = { 0xC0, 0xF9, 0xA4, 0xB0, 0x99, 0x92, 0x82, 0xF8, 0X80, 0X90 };
 const byte SEGMENT_SELECT[] = { 0xF1, 0xF2, 0xF4, 0xF8 };
 
-// Variablen für Stunden, Minuten und Sekunden
-byte hours = 0;
-byte minutes = 0;
-byte seconds = 0;
+// Struktur zur Speicherung der aktuellen Zeit
+struct Time {
+    byte hours = 0;
+    byte minutes = 0;
+    byte seconds = 0;
+} currentTime;
+
 unsigned long lastMillis = 0;
 unsigned long lastButtonPress = 0;
-
 bool showHoursMinutes = true;
 
 // Debounce-Objekte für die Taster
-Bounce debouncer1 = Bounce();
-Bounce debouncer2 = Bounce();
-Bounce debouncer3 = Bounce();
+Bounce debouncers[3];
 
+// Funktion zum Schreiben von Zahlen auf das Segment
 void writeNumberToSegment(byte segment, byte value) {
-  // Daten an die 7-Segment-Anzeige schreiben
-  digitalWrite(LATCH_DIO, LOW);
-  shiftOut(DATA_DIO, CLK_DIO, MSBFIRST, SEGMENT_MAP[value]);
-  shiftOut(DATA_DIO, CLK_DIO, MSBFIRST, SEGMENT_SELECT[segment]);
-  digitalWrite(LATCH_DIO, HIGH);
+    digitalWrite(LATCH_DIO, LOW);
+    shiftOut(DATA_DIO, CLK_DIO, MSBFIRST, SEGMENT_MAP[value]);
+    shiftOut(DATA_DIO, CLK_DIO, MSBFIRST, SEGMENT_SELECT[segment]);
+    digitalWrite(LATCH_DIO, HIGH);
+}
+
+// Funktion zur Behandlung von Tastendrücken
+void handleButtonPress(Bounce &debouncer, byte &value, byte maxVal) {
+    if (debouncer.fell() || (debouncer.read() == LOW && millis() - lastButtonPress > 200)) {
+        value = (value + 1) % maxVal;
+        lastButtonPress = millis();
+    }
 }
 
 void setup() {
-  // Pin-Modi setzen
-  pinMode(LATCH_DIO, OUTPUT);
-  pinMode(CLK_DIO, OUTPUT);
-  pinMode(DATA_DIO, OUTPUT);
+    // Setzen der Pin-Modi
+    pinMode(LATCH_DIO, OUTPUT);
+    pinMode(CLK_DIO, OUTPUT);
+    pinMode(DATA_DIO, OUTPUT);
 
-  pinMode(Taster1, INPUT_PULLUP);
-  pinMode(Taster2, INPUT_PULLUP);
-  pinMode(Taster3, INPUT_PULLUP);
-
-  // Debounce-Objekte initialisieren
-  debouncer1.attach(Taster1);
-  debouncer1.interval(5);
-  debouncer2.attach(Taster2);
-  debouncer2.interval(5);
-  debouncer3.attach(Taster3);
-  debouncer3.interval(5);
+    // Initialisierung der Taster und Debounce-Objekte
+    for (int i = 0; i < 3; i++) {
+        pinMode(TASTER_PINS[i], INPUT_PULLUP);
+        debouncers[i].attach(TASTER_PINS[i]);
+        debouncers[i].interval(5);
+    }
 }
 
 void loop() {
-  // Zustand der Taster aktualisieren
-  debouncer1.update();
-  debouncer2.update();
-  debouncer3.update();
-
-  // Bei Tastendruck oder -haltung
-  if (debouncer1.fell() || (debouncer1.read() == LOW && millis() - lastButtonPress > 200)) {
-    hours = (hours + 1) % 24;  // Stunden inkrementieren und nach 24 zurücksetzen
-    lastButtonPress = millis();
-  }
-  if (debouncer2.fell() || (debouncer2.read() == LOW && millis() - lastButtonPress > 200)) {
-    minutes = (minutes + 1) % 60;  // Minuten inkrementieren und nach 60 zurücksetzen
-    lastButtonPress = millis();
-  }
-  if (debouncer3.fell()) {
-    showHoursMinutes = !showHoursMinutes;  // Zwischen HH:MM und MM:SS wechseln
-  }
-  if (debouncer3.read() == LOW && millis() - lastButtonPress > 3000) {
-    hours = 0;    // Stunden zurücksetzen
-    minutes = 0;  // Minuten zurücksetzen
-    seconds = 0;  // Sekunden zurücksetzen
-    lastButtonPress = millis();
-  }
-
-  // Sekunden inkrementieren
-  if (millis() - lastMillis >= 1000) {
-    seconds = (seconds + 1) % 60;
-    if (seconds == 0) {  // Minuten alle 60 Sekunden erhöhen
-      minutes = (minutes + 1) % 60;
-      if (minutes == 0) {  // Stunden alle 60 Minuten erhöhen
-        hours = (hours + 1) % 24;
-      }
+    // Aktualisierung des Zustands der Taster
+    for (int i = 0; i < 3; i++) {
+        debouncers[i].update();
     }
-    lastMillis = millis();
-  }
 
-  if (showHoursMinutes) {
-    // Stunden und Minuten anzeigen
-    writeNumberToSegment(0, hours / 10);
-    writeNumberToSegment(1, hours % 10);
-    writeNumberToSegment(2, minutes / 10);
-    writeNumberToSegment(3, minutes % 10);
-  } else {
-    // Minuten und Sekunden anzeigen
-    writeNumberToSegment(0, minutes / 10);
-    writeNumberToSegment(1, minutes % 10);
-    writeNumberToSegment(2, seconds / 10);
-    writeNumberToSegment(3, seconds % 10);
-  }
+    // Behandlung der Tastendrücke für Stunden und Minuten
+    handleButtonPress(debouncers[0], currentTime.hours, 24);
+    handleButtonPress(debouncers[1], currentTime.minutes, 60);
+
+    // Umschalten zwischen Stunden:Minuten und Minuten:Sekunden
+    if (debouncers[2].fell()) {
+        showHoursMinutes = !showHoursMinutes;
+    }
+
+    // Zurücksetzen der Zeit, wenn der dritte Taster lange gedrückt wird
+    if (debouncers[2].read() == LOW && millis() - lastButtonPress > 3000) {
+        currentTime.hours = currentTime.minutes = currentTime.seconds = 0;
+        lastButtonPress = millis();
+    }
+
+    // Inkrementieren der Sekunden und gegebenenfalls der Minuten und Stunden
+    if (millis() - lastMillis >= 1000) {
+        currentTime.seconds = (currentTime.seconds + 1) % 60;
+        if (currentTime.seconds == 0 && ++currentTime.minutes == 60) {
+            currentTime.minutes = 0;
+            currentTime.hours = (currentTime.hours + 1) % 24;
+        }
+        lastMillis = millis();
+    }
+
+    // Anzeige der aktuellen Zeit
+    byte first = showHoursMinutes ? currentTime.hours : currentTime.minutes;
+    byte second = showHoursMinutes ? currentTime.minutes : currentTime.seconds;
+
+    writeNumberToSegment(0, first / 10);
+    writeNumberToSegment(1, first % 10);
+    writeNumberToSegment(2, second / 10);
+    writeNumberToSegment(3, second % 10);
 }
