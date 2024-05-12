@@ -87,8 +87,8 @@ void loop() {
     }
 
     // Anzeige der aktuellen Zeit
-    byte first = showHoursMinutes ? currentTime.hours : currentTime.minutes;
-    byte second = showHoursMinutes ? currentTime.minutes : currentTime.seconds;
+    volatile byte first = showHoursMinutes ? currentTime.hours : currentTime.minutes;
+    volatile byte second = showHoursMinutes ? currentTime.minutes : currentTime.seconds;
 
     writeNumberToSegment(0, first / 10);
     writeNumberToSegment(1, first % 10);
